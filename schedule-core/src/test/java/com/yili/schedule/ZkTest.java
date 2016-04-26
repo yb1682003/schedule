@@ -3,6 +3,7 @@ package com.yili.schedule;
 import com.alibaba.fastjson.JSONObject;
 import com.yili.schedule.config.TaskInfo;
 import com.yili.schedule.config.ZookeeperProfile;
+import com.yili.schedule.zk.ZkUtils;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -91,14 +92,17 @@ public class ZkTest {
         }
     }
 
-//    @Test
+    @Test
     public void testAddJob(){
         String path="/schedule/task_info";
         CuratorFramework client = getCuratorFramework("/schedule");
         try {
-            client.create().creatingParentContainersIfNeeded().forPath(path);
+            if(!ZkUtils.hasExistsPath(client,path)) {
+                client.create().creatingParentContainersIfNeeded().forPath(path);
+            }
             TaskInfo info = new TaskInfo();
-            info.setBeanName("testJob");
+            info.setBeanName("taskJobBean");
+            info.setCronExpression("0 * * * * ?");
             info.setConcurrency(false);
             info.setMaxLimit(30);
             info.setThreads(1);
@@ -109,6 +113,11 @@ public class ZkTest {
         }
     }
     @Test
+    public void testUpdatestatus(){
+        ZookeeperProfile profile = new ZookeeperProfile("localhost:2181","/schedule");
+        ZkUtils.updateStatus(profile,"taskJobBean","RUN");
+    }
+//    @Test
     public void testSeq(){
         String path="/schedule/log/taskJobBean";
         CuratorFramework client = getCuratorFramework("/schedule");

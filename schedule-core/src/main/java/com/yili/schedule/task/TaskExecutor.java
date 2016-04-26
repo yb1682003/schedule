@@ -140,9 +140,10 @@ public class TaskExecutor implements Runnable,Closeable{
         int successCount = 0;
         if (CollectionUtils.isNotEmpty(list)) {
             ExecutorService executorService = Executors.newFixedThreadPool(getThreads(list.size()));
-            List<Future<Boolean>> waitCompleteList = new ArrayList<Future<Boolean>>();
+
+            List<Callable<Boolean>> waitExecutors = new ArrayList<Callable<Boolean>>();
             for (final Object obj : list) {
-                Future<Boolean> result = executorService.submit(new Callable<Boolean>() {
+                waitExecutors.add(new Callable<Boolean>() {
                     /**
                      * Computes a result, or throws an exception if unable to do so.
                      *
@@ -153,45 +154,29 @@ public class TaskExecutor implements Runnable,Closeable{
                     public Boolean call() throws Exception {
                         try {
                             return TaskExecutor.this.taskJob.execute(obj);
-                        }catch(Exception ex){
+                        } catch (Exception ex) {
                             return false;
                         }
                     }
                 });
-
-                if (!result.isDone()) {
-                    waitCompleteList.add(result);
-                } else {
-                    try {
-                        if (result.get()) {
-                            successCount += 1;
-                        }
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    } catch (ExecutionException e) {
-                        e.printStackTrace();
-                    }
-                }
             }
-            while(!waitCompleteList.isEmpty()){
-                for(Iterator<Future<Boolean>> it=waitCompleteList.iterator();;){
-                    Future<Boolean> f = it.next();
-                    if(f.isDone()){
+
+            try {
+                List<Future<Boolean>> completeList = executorService.invokeAll(waitExecutors);
+
+                if(CollectionUtils.isNotEmpty(completeList)){
+                    for(Future<Boolean> f:completeList){
                         try {
-                            if (f.get()) {
+                            if(f.get()){
                                 successCount += 1;
                             }
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
                         } catch (ExecutionException e) {
                             e.printStackTrace();
                         }
-                        it.remove();
-                    }
-                    if(!it.hasNext()){
-                        break;
                     }
                 }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
             executorService.shutdown();
         }
