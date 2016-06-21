@@ -13,6 +13,11 @@ public class TaskInfo {
      * 调度cron
      */
     private String cronExpression="0 * * * * ?";
+
+    /**
+     * 下次执行时间
+     */
+    private String nextExecutorTime;
     /**
      * 最大行数
      */
@@ -135,5 +140,13 @@ public class TaskInfo {
 
     public void setMemo(String memo) {
         this.memo = memo;
+    }
+
+    public String getNextExecutorTime() {
+        return nextExecutorTime;
+    }
+
+    public void setNextExecutorTime(String nextExecutorTime) {
+        this.nextExecutorTime = nextExecutorTime;
     }
 }

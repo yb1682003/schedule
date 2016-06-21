@@ -1,11 +1,19 @@
 package com.yili.schedule.web;
 
+import com.yili.schedule.config.TaskInfo;
 import com.yili.schedule.config.ZookeeperProfile;
+import com.yili.schedule.cron.CronExpression;
 import com.yili.schedule.zk.ZkUtils;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.time.DateFormatUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.text.ParseException;
+import java.util.Date;
+import java.util.List;
 
 /**
  * 监控首页
@@ -19,7 +27,20 @@ public class HomeController {
 
     @RequestMapping("/index.do")
     public String index(ModelMap map){
-        map.put("jobs", ZkUtils.getJobList(zookeeperProfile));
+        List<TaskInfo> jobList = ZkUtils.getJobList(zookeeperProfile);
+        if(CollectionUtils.isNotEmpty(jobList)){
+            Date now = new Date();
+            for(TaskInfo taskInfo:jobList){
+                CronExpression cronExpression = null;
+                try {
+                    cronExpression = new CronExpression(taskInfo.getCronExpression());
+                    taskInfo.setNextExecutorTime(DateFormatUtils.format(cronExpression.getNextValidTimeAfter(now),"yyyy-MM-dd HH:mm:ss"));
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        map.put("jobs", jobList);
         return "index";
     }
 

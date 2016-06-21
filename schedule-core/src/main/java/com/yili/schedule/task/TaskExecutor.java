@@ -12,10 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -75,7 +72,6 @@ public class TaskExecutor implements Runnable,Closeable{
             LOGGER.debug("nextTime is same span,don't need reset schedule.");
             return;
         }
-        LOGGER.info("XXXXX startTime:{},nextTime:{}",startTime,nextTime);
         defaultSpanTime = nextTime;
         if(scheduledExecutorService!=null) {
             if(running) {
@@ -87,7 +83,9 @@ public class TaskExecutor implements Runnable,Closeable{
         }
         if(!stopFlag) {
             scheduledExecutorService = Executors.newScheduledThreadPool(1);
-            LOGGER.info("startTime:{},nextTime:{}", startTime, nextTime);
+            if(LOGGER.isInfoEnabled()) {
+                LOGGER.info("startTime:{},nextTime:{}", startTime, nextTime);
+            }
             scheduledExecutorService.scheduleAtFixedRate(this, startTime, nextTime, TimeUnit.SECONDS);
         }
     }
@@ -128,6 +126,9 @@ public class TaskExecutor implements Runnable,Closeable{
         running=true;
         reinit();
         List<?> list = taskJob.selectList(taskInfo.getConfig(), taskInfo.getMaxLimit());
+        if(list==null){
+            list = Collections.emptyList();
+        }
         if(CollectionUtils.isNotEmpty(list)){
             if(taskInfo.getMaxLimit()>0 && list.size()>taskInfo.getMaxLimit()){
                 list = list.subList(0,taskInfo.getMaxLimit());
