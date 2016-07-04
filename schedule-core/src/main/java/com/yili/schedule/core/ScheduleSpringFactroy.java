@@ -200,7 +200,7 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
                 }
             }
             try {
-                client.create().withMode(CreateMode.EPHEMERAL).forPath(ZKPaths.makePath(path, uuid), beanName.getBytes());
+                client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(ZKPaths.makePath(path, uuid), beanName.getBytes());
                 TaskListener listener = new TaskListener(path);
 
                 taskListenerMap.put(beanName, listener);
@@ -317,6 +317,14 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
             currentTaskInfo.setConcurrency(taskInfo.isConcurrency());
             updateFlag=true;
         }
+        if(!StringUtils.equals(taskInfo.getAllowHosts(),currentTaskInfo.getAllowHosts())){
+            currentTaskInfo.setAllowHosts(taskInfo.getAllowHosts());
+            updateFlag=true;
+        }
+        if(!StringUtils.equals(taskInfo.getDenyHosts(),currentTaskInfo.getDenyHosts())){
+            currentTaskInfo.setDenyHosts(taskInfo.getDenyHosts());
+            updateFlag=true;
+        }
         LOGGER.info("updateFlag:{},update content:{}",updateFlag, JSON.toJSONString(currentTaskInfo));
         if(updateFlag){
             TaskExecutor taskExec = jobMap.get(beanName);
@@ -419,5 +427,9 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
     @Override
     public void destroy() throws Exception {
         this.stop();
+    }
+
+    public String getUuid() {
+        return uuid;
     }
 }

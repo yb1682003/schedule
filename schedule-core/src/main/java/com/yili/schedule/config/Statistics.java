@@ -8,6 +8,7 @@ import java.util.Date;
  */
 public class Statistics {
 
+    private String host;
     /**
      * job加载数据的次数
      */
@@ -80,5 +81,13 @@ public class Statistics {
 
     public void setHeatBeatTime(Date heatBeatTime) {
         this.heatBeatTime = heatBeatTime;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
     }
 }

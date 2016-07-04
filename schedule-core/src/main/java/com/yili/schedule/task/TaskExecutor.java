@@ -182,7 +182,7 @@ public class TaskExecutor implements Runnable,Closeable{
             executorService.shutdown();
         }
         stat.setSuccessCount(successCount);
-
+        stat.setHost(factory.getUuid());
         factory.insertLog(taskInfo.getBeanName(), JSON.toJSONString(stat));
         running=false;
         LOGGER.debug("thread finish");
