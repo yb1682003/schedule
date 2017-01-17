@@ -22,10 +22,15 @@ public class ZookeeperProfile {
     private volatile CuratorFramework client;
 
 
+
     public ZookeeperProfile(String connectStr, String rootNode) {
+        this(connectStr,rootNode,1000,3);
+    }
+
+    public ZookeeperProfile(String connectStr,String rootNode,int timeout,int retries){
         this.connectStr = connectStr;
         this.rootNode = rootNode;
-        this.retryPolicy =new RetryNTimes(1000,3);
+        this.retryPolicy = new RetryNTimes(timeout,retries);
     }
 
 

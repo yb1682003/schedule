@@ -149,4 +149,12 @@ public class TaskInfo {
     public void setNextExecutorTime(String nextExecutorTime) {
         this.nextExecutorTime = nextExecutorTime;
     }
+
+
+    @Override
+    public String toString() {
+        return "TaskInfo{" +
+                "beanName='" + beanName + '\'' +
+                '}';
+    }
 }

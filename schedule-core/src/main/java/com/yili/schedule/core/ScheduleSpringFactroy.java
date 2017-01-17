@@ -21,6 +21,8 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextRefreshedEvent;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -30,13 +32,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 /**
  * spring的注入类
  * Created by lancey on 15/11/21.
  */
-public class ScheduleSpringFactroy implements ApplicationContextAware,InitializingBean,DisposableBean {
+public class ScheduleSpringFactroy implements ApplicationContextAware,
+//        InitializingBean,
+        ApplicationListener<ContextRefreshedEvent>,
+        DisposableBean {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ScheduleSpringFactroy.class);
 
@@ -64,9 +69,17 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
             e.printStackTrace();
         }
         uuid = host+"$"+UUID.randomUUID().toString();
-
+        if(LOGGER.isDebugEnabled()) {
+            LOGGER.debug("load taskinfos.");
+        }
         loadTaskInfos();
+        if(LOGGER.isDebugEnabled()){
+            LOGGER.debug("load taskjobs.");
+        }
         loadTaskJobs();
+        if(LOGGER.isDebugEnabled()) {
+            LOGGER.debug("ScheduleSpring load finish");
+        }
     }
 
 
@@ -80,9 +93,26 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
         this.zookeeperProfile = zookeeperProfile;
     }
 
+//    @Override
+//    public void afterPropertiesSet() throws Exception {
+//        init();
+//    }
+
     @Override
-    public void afterPropertiesSet() throws Exception {
-        init();
+    public void onApplicationEvent(ContextRefreshedEvent contextRefreshedEvent) {
+        if(contextRefreshedEvent.getApplicationContext().getParent()==null){
+//            try {
+//                TimeUnit.SECONDS.sleep(2);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+            if(LOGGER.isDebugEnabled()){
+                LOGGER.debug("start load schedule spring factroy");
+            }
+            ExecutorService executorService = Executors.newSingleThreadExecutor();
+            executorService.submit(()->init());
+//            init();
+        }
     }
 
     private void loadTaskInfos(){
@@ -214,6 +244,8 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
                 if (leader.hasLeadership()) {
                     LOGGER.info("task:{},UUID:{},is leader", taskInfo, uuid);
                     taskExecutor.init();
+                }else{
+                    LOGGER.info("task:{},UUID:{},is slave,",taskInfo,uuid);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -328,7 +360,8 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
         LOGGER.info("updateFlag:{},update content:{}",updateFlag, JSON.toJSONString(currentTaskInfo));
         if(updateFlag){
             TaskExecutor taskExec = jobMap.get(beanName);
-            if(updateCronExpresessionFlag){
+            boolean existTaskExecJob = (taskExec != null);
+            if(updateCronExpresessionFlag && existTaskExecJob){
                 taskExec.updateCron();
             }
             if(updateStatus){
@@ -338,7 +371,7 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,Initializi
                     stopTaskJob(currentTaskInfo);
                 }
             }else {
-                if (leaderLatchMap.get(beanName).hasLeadership()) {
+                if (existTaskExecJob && leaderLatchMap.get(beanName).hasLeadership()) {
                     if (jobMap.containsKey(beanName)) {
                         LOGGER.debug("JOB:{} reinit", beanName);
                         taskExec.reinit();
