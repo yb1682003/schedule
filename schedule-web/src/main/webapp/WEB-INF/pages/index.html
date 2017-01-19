@@ -16,7 +16,8 @@
         <td>只禁止</td>
         <td>备注</td>
     </tr>
-    <#list jobs as job>
+    <#list jobs as jobDetail>
+        <#assign job=jobDetail.taskInfo/>
     <tr>
         <td>
             <a href="${rc.contextPath}/task/edit.do?beanName=${job.beanName}">编辑</a>
@@ -39,6 +40,9 @@
         <td>${job.allowHosts}</td>
         <td>${job.denyHosts}</td>
         <td>${job.memo}</td>
+    </tr>
+    <tr>
+        <td colspan="12"><#list jobDetail.nodes as node><span <#if node==jobDetail.master>style="color:red" title="主节点"</#if>>${node}</span><br/></#list> </td>
     </tr>
     </#list>
 </table>

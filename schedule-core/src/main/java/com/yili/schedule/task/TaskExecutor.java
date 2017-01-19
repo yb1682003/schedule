@@ -81,6 +81,10 @@ public class TaskExecutor implements Runnable,Closeable{
                 scheduledExecutorService.shutdownNow();//不在运行就立即结束
             }
         }
+        if(!factory.hasLeader(taskInfo.getBeanName())){
+            LOGGER.info("taskInfo:{} notLeader",taskInfo.getBeanName());
+            return;
+        }
         if(!stopFlag) {
             scheduledExecutorService = Executors.newScheduledThreadPool(1);
             if(LOGGER.isInfoEnabled()) {
@@ -125,7 +129,16 @@ public class TaskExecutor implements Runnable,Closeable{
         }
         running=true;
         reinit();
-        List<?> list = taskJob.selectList(taskInfo.getConfig(), taskInfo.getMaxLimit());
+        List<?> list=null;
+        Statistics stat = new Statistics();
+        try {
+            list = taskJob.selectList(taskInfo.getConfig(), taskInfo.getMaxLimit());
+        }catch(Exception ex){
+            if(LOGGER.isWarnEnabled()){
+                LOGGER.warn("taskJob.selectList",ex);
+            }
+            stat.setFetchDataCount(-1000);//表示查询异常
+        }
         if(list==null){
             list = Collections.emptyList();
         }
@@ -134,10 +147,12 @@ public class TaskExecutor implements Runnable,Closeable{
                 list = list.subList(0,taskInfo.getMaxLimit());
             }
         }
-        Statistics stat = new Statistics();
+
         stat.setStartTime(nowDate);
         stat.setNextTime(next);
-        stat.setFetchDataCount(list.size());
+        if(stat.getFetchDataCount()!=-1000) {
+            stat.setFetchDataCount(list.size());
+        }
         int successCount = 0;
         if (CollectionUtils.isNotEmpty(list)) {
             ExecutorService executorService = Executors.newFixedThreadPool(getThreads(list.size()));
@@ -155,7 +170,10 @@ public class TaskExecutor implements Runnable,Closeable{
                     public Boolean call() throws Exception {
                         try {
                             return TaskExecutor.this.taskJob.execute(obj);
-                        } catch (Exception ex) {
+                        } catch (Throwable ex) {
+                            if(LOGGER.isWarnEnabled()){
+                                LOGGER.warn("execute taskexecutor:",ex);
+                            }
                             return false;
                         }
                     }

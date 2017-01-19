@@ -5,6 +5,7 @@ import com.yili.schedule.config.TaskInfo;
 import com.yili.schedule.config.TaskJob;
 import com.yili.schedule.config.TaskStatus;
 import com.yili.schedule.config.ZookeeperProfile;
+import com.yili.schedule.listener.LatchSelectListener;
 import com.yili.schedule.listener.TaskInfoListener;
 import com.yili.schedule.listener.TaskListener;
 import com.yili.schedule.task.TaskExecutor;
@@ -140,32 +141,7 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
         }
     }
 
-    private void stopTaskJob(TaskInfo taskInfo){
-        String key = taskInfo.getBeanName();
-        if(jobMap.containsKey(key)){
-            jobMap.get(key).close();
-            jobMap.remove(key);
-        }
 
-        if(taskListenerMap.containsKey(key)){
-            try {
-                taskListenerMap.get(key).close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            taskListenerMap.remove(key);
-        }
-
-        if(leaderLatchMap.containsKey(key)){
-            try {
-                leaderLatchMap.get(key).close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            leaderLatchMap.remove(key);
-        }
-
-    }
 
     /**
      * 检查job是否在当前的机器上有权限运行
@@ -230,23 +206,27 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
                 }
             }
             try {
-                client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(ZKPaths.makePath(path, uuid), beanName.getBytes());
-                TaskListener listener = new TaskListener(path);
+                String exec_node = ZKPaths.makePath(path, uuid);
+                if(!checkExists(exec_node)) {
+                    client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(exec_node, beanName.getBytes());
 
-                taskListenerMap.put(beanName, listener);
-
-                listener.exec(this);
+                    TaskListener listener = new TaskListener(path);
+                    taskListenerMap.put(beanName, listener);
+                    listener.exec(this);
+                }
 
                 LeaderLatch leader = new LeaderLatch(client, ZKPaths.makePath(path, "lock"), uuid);
                 leader.start();
+                leader.addListener(new LatchSelectListener(this,beanName));
                 leaderLatchMap.put(beanName, leader);
-                Thread.sleep(2000);
+                TimeUnit.SECONDS.sleep(3);
                 if (leader.hasLeadership()) {
                     LOGGER.info("task:{},UUID:{},is leader", taskInfo, uuid);
-                    taskExecutor.init();
+//                    taskExecutor.init();
                 }else{
                     LOGGER.info("task:{},UUID:{},is slave,",taskInfo,uuid);
                 }
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -258,6 +238,19 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
     }
 
 
+    private void stopTaskJob(TaskInfo taskInfo){
+        String key = taskInfo.getBeanName();
+        if(jobMap.containsKey(key)){
+            jobMap.get(key).close();
+            jobMap.remove(key);
+        }
+
+        //stopTaskListenerByName(key);
+
+        stopLeaderLatchByName(key);
+
+    }
+
     /**
      * 任务移除
      * @param path
@@ -265,15 +258,17 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
     public void handleTaskRemove(String path){
         LOGGER.info("handleTaskRemove:{}",path);
         String beanName = getBeanNameByPath(path);
-        //停掉选举操作
-        if(leaderLatchMap.containsKey(beanName)){
-            try {
-                leaderLatchMap.get(beanName).close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            leaderLatchMap.remove(beanName);
+
+
+        String exec_node = ZKPaths.makePath(path, uuid);
+        try {
+            client.delete().deletingChildrenIfNeeded().forPath(exec_node);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+        stopTaskListenerByName(beanName);
+        //停掉选举操作
+        stopLeaderLatchByName(beanName);
 
         //停止调度
         if(jobMap.containsKey(beanName)){
@@ -282,6 +277,28 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
         }
         if(taskInfoMap.containsKey(beanName)){
             taskInfoMap.remove(beanName);
+        }
+    }
+
+    private void stopTaskListenerByName(String key) {
+        if(taskListenerMap.containsKey(key)){
+            try {
+                taskListenerMap.get(key).close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            taskListenerMap.remove(key);
+        }
+    }
+
+    private void stopLeaderLatchByName(String beanName) {
+        if(leaderLatchMap.containsKey(beanName)){
+            try {
+                leaderLatchMap.get(beanName).close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            leaderLatchMap.remove(beanName);
         }
     }
 
@@ -357,7 +374,7 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
             currentTaskInfo.setDenyHosts(taskInfo.getDenyHosts());
             updateFlag=true;
         }
-        LOGGER.info("updateFlag:{},update content:{}",updateFlag, JSON.toJSONString(currentTaskInfo));
+        LOGGER.info("updateFlag:{},updateStatus:{},update content:{}",updateFlag,updateStatus, JSON.toJSONString(currentTaskInfo));
         if(updateFlag){
             TaskExecutor taskExec = jobMap.get(beanName);
             boolean existTaskExecJob = (taskExec != null);
@@ -381,6 +398,14 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
         }
     }
 
+    public void selectLeadership(String beanName){
+        TaskExecutor taskExec = jobMap.get(beanName);
+        LOGGER.info("{} is leader",beanName);
+        if(taskExec!=null && leaderLatchMap.get(beanName).hasLeadership()){
+            taskExec.reinit();
+        }
+    }
+
     private String getBeanNameByPath(String path) {
         String[] arr = path.split("/");
         return arr[arr.length-1];
@@ -396,9 +421,9 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
         }
         LOGGER.info("handleHostRemove:{}",path);
 
-        if(leaderLatchMap.get(path).hasLeadership()){
-            jobMap.get(path).init();
-        }
+//        if(leaderLatchMap.get(path).hasLeadership()){
+//            jobMap.get(path).init();
+//        }
     }
 
     public void stop(){
@@ -451,6 +476,15 @@ public class ScheduleSpringFactroy implements ApplicationContextAware,
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+
+    public boolean hasLeader(String beanName){
+        if(!leaderLatchMap.containsKey(beanName)){
+            return false;
+        }
+        return leaderLatchMap.get(beanName).hasLeadership()
+                && checkExists(zookeeperProfile.makePath("task",beanName,getUuid()));
     }
 
     public CuratorFramework getClient() {

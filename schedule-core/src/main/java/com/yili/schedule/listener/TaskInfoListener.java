@@ -44,7 +44,7 @@ public class TaskInfoListener implements Closeable{
                         factroy.handleTaskRemove(pathChildrenCacheEvent.getData().getPath());
                         break;
                     default:
-                        LOGGER.debug("TASK INFO path:{}, event:{}",pathChildrenCacheEvent.getData().getPath(),pathChildrenCacheEvent.getType());
+                        LOGGER.debug("TASK INFO path:{}, event:{}",(pathChildrenCacheEvent.getData()==null)?"null":pathChildrenCacheEvent.getData().getPath(),pathChildrenCacheEvent.getType());
                 }
             }
         });

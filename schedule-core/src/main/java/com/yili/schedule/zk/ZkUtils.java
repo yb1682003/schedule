@@ -6,6 +6,8 @@ import com.yili.schedule.config.TaskInfo;
 import com.yili.schedule.config.TaskStatus;
 import com.yili.schedule.config.ZookeeperProfile;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.map.HashedMap;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.data.Stat;
@@ -13,6 +15,7 @@ import org.springframework.beans.BeanUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by lancey on 16/3/18.
@@ -42,6 +45,50 @@ public class ZkUtils {
             e.printStackTrace();
         }
         return taskInfos;
+    }
+
+
+    public static Map<String,Object> getTaskNodes(final ZookeeperProfile zookeeperProfile, String beanName){
+        String path = zookeeperProfile.makePath("task",beanName);
+        List<String> list = null;
+        Map<String,Object> map = new HashedMap();
+        try {
+            list = zookeeperProfile.createClient().getChildren().forPath(path);
+            List<String> nodes = new ArrayList<>();
+
+            if(CollectionUtils.isNotEmpty(list)){
+
+                for(String child:list){
+                    if(child.equals("lock")){
+                        String leader = getLeader(zookeeperProfile,ZKPaths.makePath(path,"lock"));
+                        if(leader!=null){
+                            map.put("master",leader);
+                        }
+                    }else{
+                        nodes.add(child);
+                    }
+                }
+            }
+            map.put("nodes",nodes);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return map;
+    }
+
+    private static String getLeader(ZookeeperProfile zookeeperProfile,String path){
+        List<String> list = null;
+        try {
+            list = zookeeperProfile.createClient().getChildren().forPath(path);
+            if(CollectionUtils.isNotEmpty(list)){
+                String str = new String(zookeeperProfile.createClient().getData().forPath(ZKPaths.makePath(path,list.get(0))));
+                return str;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
     }
 
     public static List<String> getJobListString(final ZookeeperProfile profile){

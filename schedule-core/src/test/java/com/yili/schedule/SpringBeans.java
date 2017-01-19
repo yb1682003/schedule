@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 @ComponentScan("")
 public class SpringBeans {
 
-    private String zookeeperlist="10.10.24.10:2181";
+    private String zookeeperlist="200.192.20.10:2181";
 
     @Autowired
     ZookeeperProfile profile;

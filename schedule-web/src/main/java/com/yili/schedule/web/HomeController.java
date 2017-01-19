@@ -12,8 +12,10 @@ import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 监控首页
@@ -28,6 +30,7 @@ public class HomeController {
     @RequestMapping("/index.do")
     public String index(ModelMap map){
         List<TaskInfo> jobList = ZkUtils.getJobList(zookeeperProfile);
+        List<TaskDetailInfo> detailInfoList = new ArrayList<>();
         if(CollectionUtils.isNotEmpty(jobList)){
             Date now = new Date();
             for(TaskInfo taskInfo:jobList){
@@ -38,9 +41,15 @@ public class HomeController {
                 } catch (ParseException e) {
                     e.printStackTrace();
                 }
+                TaskDetailInfo taskDetailInfo = new TaskDetailInfo();
+                taskDetailInfo.setTaskInfo(taskInfo);
+                Map<String,Object> result = ZkUtils.getTaskNodes(zookeeperProfile,taskInfo.getBeanName());
+                taskDetailInfo.setMaster((String)result.get("master"));
+                taskDetailInfo.setNodes((List<String>)result.get("nodes"));
+                detailInfoList.add(taskDetailInfo);
             }
         }
-        map.put("jobs", jobList);
+        map.put("jobs", detailInfoList);
         return "index";
     }
 
